@@ -6,6 +6,7 @@ from FileStream.utils.database import Database
 from FileStream.utils.human_readable import humanbytes
 from FileStream.config import Telegram, Server
 from FileStream.bot import FileStream
+from shortzy import Shortzy
 import asyncio
 from typing import (
     Union
@@ -13,6 +14,11 @@ from typing import (
 
 
 db = Database(Telegram.DATABASE_URL, Telegram.SESSION_NAME)
+#---shortlink---#
+async def shorten_url(file_url):
+    shortzy = Shortzy(api_key='ec0302ba947424f629ea4e63cabc23abdfef265c', base_site='luckyurl.in')
+    link = await shortzy.convert(file_url)
+    return link 
 
 async def get_invite_link(bot, chat_id: Union[str, int]):
     try:
@@ -86,7 +92,7 @@ async def gen_link(_id):
     mime_type = file_info['mime_type']
 
     page_link = f"{Server.URL}watch/{_id}"
-    stream_link = f"{Server.URL}dl/{_id}"
+    stream_link = await shorten_url(file_url=f"{Server.URL}dl/{_id}")
     file_link = f"https://t.me/{FileStream.username}?start=file_{_id}"
 
     if "video" in mime_type:
@@ -118,7 +124,7 @@ async def gen_linkx(m:Message , _id, name: list):
     file_size = humanbytes(file_info['file_size'])
 
     page_link = f"{Server.URL}watch/{_id}"
-    stream_link = f"{Server.URL}dl/{_id}"
+    stream_link = await shorten_url(file_url=f"{Server.URL}dl/{_id}")
     file_link = f"https://t.me/{FileStream.username}?start=file_{_id}"
 
     if "video" in mime_type:
