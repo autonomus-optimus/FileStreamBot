@@ -124,7 +124,7 @@ async def gen_linkx(m:Message , _id, name: list):
     file_size = humanbytes(file_info['file_size'])
 
     page_link = f"{Server.URL}watch/{_id}"
-    stream_link = await shorten_url(file_url=f"{Server.URL}dl/{_id}")
+    stream_link = await shorten_url(file_url=f"https://savecontentbot-tgx-dl.vercel.app/?fileid={_id}")
     file_link = f"https://t.me/{FileStream.username}?start=file_{_id}"
 
     if "video" in mime_type:
