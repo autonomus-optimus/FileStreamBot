@@ -135,7 +135,7 @@ async def gen_file_menu(_id, file_list_no, update: CallbackQuery):
         file_type = "Unknown"
 
     page_link = f"{Server.URL}watch/{myfile_info['_id']}"
-    stream_link = f"{Server.URL}dl/{myfile_info['_id']}"
+    stream_link = f"https://savecontentbot-tgx-dl.vercel.app/?fileid={myfile_info['_id']}"
     if "video" in file_type.lower():
         MYFILES_BUTTONS = InlineKeyboardMarkup(
             [
