@@ -77,7 +77,7 @@ if __name__ == "__main__":
         print("Executing : python3 -m FileStream")
         subprocess.run(["python3", "-m", "FileStream"])
         print("Exit")
-        sys.exit(1)
+        sys.exit(0)
     except Exception as err:
         pass
     finally:
