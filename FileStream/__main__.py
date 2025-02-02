@@ -73,7 +73,7 @@ if __name__ == "__main__":
         print(f'Error Occurred: {e}')
         print("Restarting the service")
         #restart the service after 1 hour
-        time.sleep(60*60)
+        time.sleep(60)
         print("Executing : python3 -m FileStream")
         subprocess.run(["python3", "-m", "FileStream"])
         print("Exit")
