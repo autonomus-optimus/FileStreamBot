@@ -69,8 +69,17 @@ if __name__ == "__main__":
         loop.run_until_complete(start_services())
     except KeyboardInterrupt:
         pass
+    except OSError as e:
+        print(f'Error Occurred: {e}')
+        print("Restarting the service")
+        #restart the service after 1 hour
+        time.sleep(60*60)
+        print("Executing : python3 -m FileStream")
+        subprocess.run(["python3", "-m", "FileStream"])
+        print("Exit")
+        sys.exit(1)
     except Exception as err:
-        logging.error(traceback.format_exc())
+        pass
     finally:
         loop.run_until_complete(cleanup())
         loop.stop()
