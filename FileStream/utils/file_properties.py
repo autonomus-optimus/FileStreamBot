@@ -16,46 +16,54 @@ db = Database(Telegram.DATABASE_URL, Telegram.SESSION_NAME)
 
 async def get_file_ids(client: Client | bool, db_id: str, multi_clients, message) -> Optional[FileId]:
     try:
-        logging.debug("Starting of get_file_ids")
+        logging.debug(f"Starting get_file_ids for client {client.id if client else 'None'} and db_id {db_id}")
         file_info = await db.get_file(db_id)
 
-        if not file_info or "file_ids" not in file_info or not client:
-            logging.debug("Storing file_id of all clients in DB")
-            log_msg = await send_file(FileStream, db_id, file_info.get('file_id', ""), message)
-            await db.update_file_ids(db_id, await update_file_id(log_msg.id, multi_clients))
-            logging.debug("Stored file_id of all clients in DB")
-            if not client:
-                return None
-            file_info = await db.get_file(db_id)
+        if not file_info:
+            logging.error(f"No file info found for db_id {db_id}.")
+            return None
 
         file_id_info = file_info.setdefault("file_ids", {})
 
+        # If file ID is missing, fetch and store it
         if str(client.id) not in file_id_info or not file_id_info[str(client.id)]:
-            logging.debug(f"No file ID found for client {client.id}, storing now...")
+            logging.warning(f"No file ID found for client {client.id}, attempting to fetch...")
+
             log_msg = await send_file(FileStream, db_id, file_info.get('file_id', ""), message)
+            if not log_msg:
+                logging.error(f"Failed to send file for db_id {db_id}, cannot store file ID.")
+                return None
+
             msg = await client.get_messages(Telegram.FLOG_CHANNEL, log_msg.id)
             media = get_media_from_message(msg)
-            file_id_info[str(client.id)] = getattr(media, "file_id", "")
-            await db.update_file_ids(db_id, file_id_info)
-            logging.debug("Stored file_id in DB")
+            file_id = getattr(media, "file_id", "")
 
+            if not file_id:
+                logging.error(f"Failed to retrieve file ID for client {client.id}.")
+                return None
+
+            file_id_info[str(client.id)] = file_id
+            await db.update_file_ids(db_id, file_id_info)
+            logging.info(f"Stored file ID for client {client.id} in database.")
+
+        # Double-check if file ID exists now
         if str(client.id) not in file_id_info or not file_id_info[str(client.id)]:
-            logging.error(f"No file ID found for client {client.id}, returning None")
+            logging.error(f"Still no file ID found for client {client.id}, returning None.")
             return None
 
-        logging.debug("Middle of get_file_ids")
+        # Decode and return file ID
         file_id = FileId.decode(file_id_info[str(client.id)])
         setattr(file_id, "file_size", file_info.get('file_size', 0))
         setattr(file_id, "mime_type", file_info.get('mime_type', "None/unknown"))
         setattr(file_id, "file_name", file_info.get('file_name', "unknown_file"))
         setattr(file_id, "unique_id", file_info.get('file_unique_id', ""))
-        logging.debug("Ending of get_file_ids")
 
+        logging.debug(f"Successfully retrieved file ID for client {client.id}")
         return file_id
+
     except Exception as e:
         logging.error(f"Error in get_file_ids: {e}", exc_info=True)
         return None
-
 
 def get_media_from_message(message: "Message") -> Any:
     try:
@@ -146,17 +154,24 @@ def get_file_info(message):
 
 
 async def update_file_id(msg_id, multi_clients):
-    try:
-        file_ids = {}
-        for client_id, client in multi_clients.items():
+    file_ids = {}
+
+    for client_id, client in multi_clients.items():
+        try:
             log_msg = await client.get_messages(Telegram.FLOG_CHANNEL, msg_id)
             media = get_media_from_message(log_msg)
-            file_ids[str(client.id)] = getattr(media, "file_id", "")
+            file_id = getattr(media, "file_id", "")
 
-        return file_ids
-    except Exception as e:
-        logging.error(f"Error in update_file_id: {e}", exc_info=True)
-        return {}
+            if not file_id:
+                logging.warning(f"Failed to retrieve file ID for client {client_id}.")
+            else:
+                file_ids[str(client.id)] = file_id
+
+        except Exception as e:
+            logging.error(f"Error fetching file ID for client {client_id}: {e}", exc_info=True)
+
+    return file_ids
+
 
 
 async def send_file(client: Client, db_id, file_id: str, message):
