@@ -17,33 +17,41 @@ db = Database(Telegram.DATABASE_URL, Telegram.SESSION_NAME)
 async def get_file_ids(client: Client | bool, db_id: str, multi_clients, message) -> Optional[FileId]:
     logging.debug("Starting of get_file_ids")
     file_info = await db.get_file(db_id)
-    if (not "file_ids" in file_info) or not client:
+
+    if not file_info or "file_ids" not in file_info or not client:
         logging.debug("Storing file_id of all clients in DB")
-        log_msg = await send_file(FileStream, db_id, file_info['file_id'], message)
+        log_msg = await send_file(FileStream, db_id, file_info.get('file_id', ""), message)
         await db.update_file_ids(db_id, await update_file_id(log_msg.id, multi_clients))
         logging.debug("Stored file_id of all clients in DB")
         if not client:
-            return
+            return None
         file_info = await db.get_file(db_id)
 
     file_id_info = file_info.setdefault("file_ids", {})
-    if not str(client.id) in file_id_info:
-        logging.debug("Storing file_id in DB")
-        log_msg = await send_file(FileStream, db_id, file_info['file_id'], message)
+    
+    if str(client.id) not in file_id_info or not file_id_info[str(client.id)]:
+        logging.debug(f"No file ID found for client {client.id}, storing now...")
+        log_msg = await send_file(FileStream, db_id, file_info.get('file_id', ""), message)
         msg = await client.get_messages(Telegram.FLOG_CHANNEL, log_msg.id)
         media = get_media_from_message(msg)
         file_id_info[str(client.id)] = getattr(media, "file_id", "")
         await db.update_file_ids(db_id, file_id_info)
         logging.debug("Stored file_id in DB")
 
+    if str(client.id) not in file_id_info or not file_id_info[str(client.id)]:
+        logging.error(f"No file ID found for client {client.id}, returning None")
+        return None
+
     logging.debug("Middle of get_file_ids")
     file_id = FileId.decode(file_id_info[str(client.id)])
-    setattr(file_id, "file_size", file_info['file_size'])
-    setattr(file_id, "mime_type", file_info['mime_type'])
-    setattr(file_id, "file_name", file_info['file_name'])
-    setattr(file_id, "unique_id", file_info['file_unique_id'])
+    setattr(file_id, "file_size", file_info.get('file_size', 0))
+    setattr(file_id, "mime_type", file_info.get('mime_type', "None/unknown"))
+    setattr(file_id, "file_name", file_info.get('file_name', "unknown_file"))
+    setattr(file_id, "unique_id", file_info.get('file_unique_id', ""))
     logging.debug("Ending of get_file_ids")
+    
     return file_id
+
 
 
 def get_media_from_message(message: "Message") -> Any:
@@ -69,6 +77,8 @@ def get_media_file_size(m):
 
 
 def get_name(media_msg: Message | FileId) -> str:
+    file_name = ""
+
     if isinstance(media_msg, Message):
         media = get_media_from_message(media_msg)
         file_name = getattr(media, "file_name", "")
@@ -79,7 +89,7 @@ def get_name(media_msg: Message | FileId) -> str:
     if not file_name:
         if isinstance(media_msg, Message) and media_msg.media:
             media_type = media_msg.media.value
-        elif media_msg.file_type:
+        elif isinstance(media_msg, FileId) and media_msg.file_type:
             media_type = media_msg.file_type.name.lower()
         else:
             media_type = "file"
@@ -90,13 +100,14 @@ def get_name(media_msg: Message | FileId) -> str:
             "sticker": "webp"
         }
 
-        ext = formats.get(media_type)
+        ext = formats.get(media_type, "")
         ext = "." + ext if ext else ""
 
         date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         file_name = f"{media_type}-{date}{ext}"
 
     return file_name
+
 
 
 def get_file_info(message):
